@@ -2,9 +2,10 @@
   "name": "quadtree.cc",
   "version": "1.0.0",
   "description": "A C++ implementation of quadtree",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "configure": "ngyp gyp/test.gyp --depth=. -f make --generator-output=build --toplevel-dir=.",
+    "clean": "rm -rf build",
+    "test": "make --directory=build && build/out/Default/test "
   },
   "keywords": [
     "c++",
@@ -16,5 +17,12 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/anvaka/quadtree.cc"
+  },
+  "dependencies": {
+    "random.cc": "^2.0.0"
+  },
+  "devDependencies": {
+    "catch.cc": "^7.0.0",
+    "ngyp": "^1.0.1"
   }
 }
