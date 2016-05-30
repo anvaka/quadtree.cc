@@ -76,3 +76,21 @@ TEST_CASE("Can handle two bodies at the same location", "[insert]") {
   REQUIRE(bodyB->force.x != 0);
   REQUIRE(bodyA->force.x != 0);
 };
+
+TEST_CASE("It Can handle large bodies number", "[huge]") {
+  QuadTree tree;
+  const int count = 60000;
+  std::vector<Body> bodies(count);
+  
+  for (int i = 0; i < count; ++i) {
+    bodies.push_back(Body());
+  }
+  
+  tree.insertBodies(bodies);
+  
+  for (int i = 0; i < count; ++i) {
+    tree.updateBodyForce(&bodies[i]);
+  }
+  
+  REQUIRE(true);
+}
