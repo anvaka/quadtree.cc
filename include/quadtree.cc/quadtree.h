@@ -30,7 +30,7 @@ struct Body {
   // so we can count its mass appropriately.
   int incomingCount = 0;
 
-  Body() { }
+  Body() {}
   Body(Vector3 _pos): pos(_pos), prevPos(_pos) {}
 
   void setPos(const Vector3 &_pos) {
@@ -89,13 +89,13 @@ public:
 };
 
 class QuadTree {
-  const LayoutSettings layoutSettings;
+  LayoutSettings layoutSettings;
   Random random;
   
   NodePool treeNodes;
   QuadTreeNode *root;
   
-  QuadTreeNode *createRootNode(std::vector<Body> &bodies);
+  QuadTreeNode *createRootNode(const std::vector<Body *> &bodies);
   void insert(Body *body, QuadTreeNode *node);
   
 public:
@@ -105,11 +105,15 @@ public:
   QuadTree() : layoutSettings(), random(1984) {
   }
   
-  void insertBodies(std::vector<Body> &bodies);
+  void insertBodies(const std::vector<Body *> &bodies);
   void updateBodyForce(Body *sourceBody);
 
   const QuadTreeNode* getRoot() {
     return root;
+  }
+  
+  LayoutSettings* getSettings() {
+    return &layoutSettings;
   }
 };
 

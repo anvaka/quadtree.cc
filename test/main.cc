@@ -6,8 +6,8 @@
 TEST_CASE( "insert and update update forces", "[insert]" ) {
   QuadTree tree;
   Body body, other;
-  std::vector<Body> bodies;
-  bodies.push_back(body);
+  std::vector<Body *> bodies;
+  bodies.push_back(&body);
 
   tree.insertBodies(bodies);
   tree.updateBodyForce(&body);
@@ -18,25 +18,25 @@ TEST_CASE( "insert and update update forces", "[insert]" ) {
 TEST_CASE( "It can get root", "[insert]" ) {
   QuadTree tree;
   Body body;
-  std::vector<Body> bodies;
-  bodies.push_back(body);
+  std::vector<Body *> bodies;
+  bodies.push_back(&body);
   
   tree.insertBodies(bodies);
   
   auto root = tree.getRoot();
   auto rootIsPresent = root != nullptr;
   REQUIRE(rootIsPresent);
-  auto rootHasTheSameBody = root->body == &bodies[0];
+  auto rootHasTheSameBody = root->body == &body;
   REQUIRE(rootHasTheSameBody);
 }
 
 TEST_CASE("Two bodies repel each other", "[insert]") {
   QuadTree tree;
-  std::vector<Body> bodies;
-  bodies.push_back(Body());
-  bodies.push_back(Body());
-  Body *bodyA = &bodies[0];
-  Body *bodyB = &bodies[1];
+  std::vector<Body *> bodies;
+  bodies.push_back(new Body());
+  bodies.push_back(new Body());
+  Body *bodyA = bodies[0];
+  Body *bodyB = bodies[1];
 
   bodyA->pos.x = 1; bodyA->pos.y = 0;
   bodyB->pos.x = 2; bodyB->pos.y = 0;
@@ -62,11 +62,11 @@ TEST_CASE("Two bodies repel each other", "[insert]") {
 
 TEST_CASE("Can handle two bodies at the same location", "[insert]") {
   QuadTree tree;
-  std::vector<Body> bodies;
-  bodies.push_back(Body());
-  bodies.push_back(Body());
-  Body *bodyA = &bodies[0];
-  Body *bodyB = &bodies[1];
+  std::vector<Body *> bodies;
+  bodies.push_back(new Body());
+  bodies.push_back(new Body());
+  Body *bodyA = bodies[0];
+  Body *bodyB = bodies[1];
 
   tree.insertBodies(bodies);
   tree.updateBodyForce(bodyA);
@@ -80,16 +80,16 @@ TEST_CASE("Can handle two bodies at the same location", "[insert]") {
 TEST_CASE("It Can handle large bodies number", "[huge]") {
   QuadTree tree;
   const int count = 60000;
-  std::vector<Body> bodies(count);
+  std::vector<Body *> bodies;
   
   for (int i = 0; i < count; ++i) {
-    bodies.push_back(Body());
+    bodies.push_back(new Body());
   }
   
   tree.insertBodies(bodies);
   
   for (int i = 0; i < count; ++i) {
-    tree.updateBodyForce(&bodies[i]);
+    tree.updateBodyForce(bodies[i]);
   }
   
   REQUIRE(true);

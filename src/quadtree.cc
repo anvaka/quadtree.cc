@@ -13,12 +13,12 @@
 
 NotEnoughQuadSpaceException  _NotEnoughQuadSpaceException;
 
-QuadTreeNode *QuadTree::createRootNode(std::vector<Body> &bodies) {
+QuadTreeNode *QuadTree::createRootNode(const std::vector<Body *> &bodies) {
   double x1 = INT32_MAX, x2 = INT32_MIN,
   y1 = INT32_MAX, y2 = INT32_MIN,
   z1 = INT32_MAX, z2 = INT32_MIN;
 
-  for (std::vector<Body>::iterator body = bodies.begin() ; body != bodies.end(); ++body) {
+  for (auto body : bodies) {
     double x = body->pos.x;
     double y = body->pos.y;
     double z = body->pos.z;
@@ -146,16 +146,16 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
   }
 }
 
-void QuadTree::insertBodies(std::vector<Body> &bodies) {
+void QuadTree::insertBodies(const std::vector<Body *> &bodies) {
   try {
     treeNodes.reset();
     root = createRootNode(bodies);
     if (bodies.size() > 0) {
-      root->body = &bodies[0];
+      root->body = bodies[0];
     }
 
     for (size_t i = 1; i < bodies.size(); ++i) {
-      insert(&(bodies[i]), root);
+      insert(bodies[i], root);
     }
     return;
   } catch(NotEnoughQuadSpaceException &e) {
