@@ -24,7 +24,7 @@ struct Body {
   Vector3 velocity;
   double mass = 1.0;
 
-  vector<std::size_t> springs;  // these are outgoing connections.
+  std::vector<Body *> springs;  // these are outgoing connections.
 
   // This is just a number of incoming connections for this body,
   // so we can count its mass appropriately.
