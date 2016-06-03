@@ -198,7 +198,7 @@ void QuadTree::updateBodyForce(Body *sourceBody) {
       // This is standard gravitation force calculation but we divide
       // by r^3 to save two operations when normalizing force vector.
 
-      v = layoutSettings.gravity * body->mass * sourceBody->mass / (r * r * r);
+      v = _gravity * body->mass * sourceBody->mass / (r * r * r);
       fx += v * dx;
       fy += v * dy;
       fz += v * dz;
@@ -223,11 +223,11 @@ void QuadTree::updateBodyForce(Body *sourceBody) {
       }
       // If s / r < θ, treat this internal node as a single body, and calculate the
       // force it exerts on sourceBody, and add this amount to sourceBody's net force.
-      if ((node->right - node->left) / r < layoutSettings.theta) {
+      if ((node->right - node->left) / r < _theta) {
         // in the if statement above we consider node's width only
         // because the region was squarified during tree creation.
         // Thus there is no difference between using width or height.
-        v = layoutSettings.gravity * node->mass * sourceBody->mass / (r * r * r);
+        v = _gravity * node->mass * sourceBody->mass / (r * r * r);
         fx += v * dx;
         fy += v * dy;
         fz += v * dz;

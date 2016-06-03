@@ -31,6 +31,7 @@ struct Body {
   int incomingCount = 0;
 
   Body() {}
+  
   Body(Vector3 _pos): pos(_pos), prevPos(_pos) {}
 
   void setPos(const Vector3 &_pos) {
@@ -89,8 +90,9 @@ public:
 };
 
 class QuadTree {
-  LayoutSettings layoutSettings;
   Random random;
+  double _theta;
+  double _gravity;
   
   NodePool treeNodes;
   QuadTreeNode *root;
@@ -99,21 +101,14 @@ class QuadTree {
   void insert(Body *body, QuadTreeNode *node);
   
 public:
-  QuadTree(const LayoutSettings& _settings) : layoutSettings(_settings), random(1984) {
-  }
-  
-  QuadTree() : layoutSettings(), random(1984) {
-  }
+  QuadTree() : QuadTree(-1.2, 0.8) {}
+  QuadTree(const double &gravity, const double &theta) : random(1984), _gravity(gravity), _theta(theta) {}
   
   void insertBodies(const std::vector<Body *> &bodies);
   void updateBodyForce(Body *sourceBody);
 
   const QuadTreeNode* getRoot() {
     return root;
-  }
-  
-  LayoutSettings* getSettings() {
-    return &layoutSettings;
   }
 };
 

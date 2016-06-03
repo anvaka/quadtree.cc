@@ -13,27 +13,6 @@
 
 using namespace std;
 
-struct LayoutSettings {
-  double stableThreshold = 0.009;
-  double gravity = -1.2;
-  double theta = 1.2;
-  double dragCoeff = 0.02;
-  double springCoeff = 0.0008;
-  double springLength = 30;
-  double timeStep = 20;
-  
-  LayoutSettings& operator =(const LayoutSettings &other) {
-    stableThreshold = other.stableThreshold;
-    gravity = other.gravity;
-    theta = other.theta;
-    dragCoeff = other.dragCoeff;
-    springCoeff = other.springCoeff;
-    springLength = other.springLength;
-    timeStep = other.timeStep;
-    return *this;
-  }
-};
-
 // TODO: Support standard operations from quadtree logic
 struct Vector3 {
   double x = 0.0;
