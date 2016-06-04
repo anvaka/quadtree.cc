@@ -31,7 +31,7 @@ struct Body {
   int incomingCount = 0;
 
   Body() {}
-  
+
   Body(Vector3 _pos): pos(_pos), prevPos(_pos) {}
 
   void setPos(const Vector3 &_pos) {
@@ -93,17 +93,17 @@ class QuadTree {
   Random random;
   double _theta;
   double _gravity;
-  
+
   NodePool treeNodes;
   QuadTreeNode *root;
-  
+
   QuadTreeNode *createRootNode(const std::vector<Body *> &bodies);
   void insert(Body *body, QuadTreeNode *node);
-  
+
 public:
   QuadTree() : QuadTree(-1.2, 0.8) {}
-  QuadTree(const double &gravity, const double &theta) : random(1984), _gravity(gravity), _theta(theta) {}
-  
+  QuadTree(const double &gravity, const double &theta) : random(1984), _theta(theta), _gravity(gravity) {}
+
   void insertBodies(const std::vector<Body *> &bodies);
   void updateBodyForce(Body *sourceBody);
 
