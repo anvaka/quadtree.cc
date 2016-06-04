@@ -1,6 +1,6 @@
 {
   "name": "quadtree.cc",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "A C++ implementation of quadtree",
   "scripts": {
     "configure": "ngyp gyp/test.gyp --depth=. -f make --generator-output=build --toplevel-dir=.",
