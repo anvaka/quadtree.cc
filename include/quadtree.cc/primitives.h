@@ -23,6 +23,18 @@ struct Vector3 {
   x(_x), y(_y), z(_z) {};
   
   Vector3() {}
+
+  Vector3(const Vector3 &other) {
+    x = other.x;
+    y = other.y;
+    z = other.z;
+  }
+
+  friend Vector3 operator-(Vector3 left, const Vector3& right) {
+    Vector3 result(left);
+    result.sub(right);
+    return result;
+  }
   
   void reset () {
     x = y = z = 0;

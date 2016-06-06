@@ -5,7 +5,7 @@
 //  Created by Andrei Kashcha on 5/21/15.
 //  Copyright (c) 2015 Andrei Kashcha. All rights reserved.
 //
-//  NOTE: This code was copied as is from https://github.com/anvaka/ngraph.quadtreebh3d/blob/master/index.js
+//  NOTE: This code was originally implemented in https://github.com/anvaka/ngraph.quadtreebh3d/blob/master/index.js
 //  Some of the coments are no longer relvant to C++.
 //
 
@@ -60,11 +60,48 @@ QuadTreeNode *QuadTree::createRootNode(const std::vector<Body *> &bodies) {
 }
 
 void QuadTree::insert(Body *body, QuadTreeNode *node) {
-  if (!node->body) {
+  if (node->isLeaf()) {
+    // We are trying to add to the leaf node.
+    // We have to convert current leaf into "internal node"
+    // and continue adding two nodes.
+    Body *oldBody = node->body;
+
+    // Node is not considered a leaf it has no body:
+    node->body = NULL;
+
+    if (oldBody->pos.sameAs(body->pos)) {
+      // Ugh, both bodies are at the same position. Let's try to
+      // bump them within the quadrant:
+      int retriesCount = 3;
+      do {
+        double offset = random.nextDouble(),
+        // TODO: this should be a vector operation
+        dx = (node->right - node->left) * offset,
+        dy = (node->bottom - node->top) * offset,
+        dz = (node->front - node->back) * offset;
+
+        oldBody->pos.set(node->left + dx, node->top + dy, node->back + dz);
+        retriesCount -= 1;
+        // Make sure we don't bump it out of the box. If we do, next iteration should fix it
+      } while (retriesCount > 0 && oldBody->pos.sameAs(body->pos));
+
+      if (retriesCount == 0 && oldBody->pos.sameAs(body->pos)) {
+        // This is very bad, we ran out of precision.
+        // We cannot proceed under current root's constraints, so let's
+        // throw - this will cause parent to give bigger space for the root
+        // node, and hopefully we can fit on the subsequent iteration.
+        throw _NotEnoughQuadSpaceException;
+      }
+    }
+    // Insert both bodies into a node that is no longer a leaf:
+    insert(oldBody, node);
+    insert(body, node);
+  } else {
     // This is internal node. Update the total mass of the node and center-of-mass.
     Vector3& pos = body->pos;
     node->mass += body->mass;
     node->massVector.addScaledVector(pos, body->mass);
+
     // Recursively insert the body in the appropriate quadrant.
     // But first find the appropriate quadrant.
     int quadIdx = 0; // Assume we are in the 0's quad.
@@ -92,7 +129,10 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
     }
 
     QuadTreeNode *child = node->quads[quadIdx];
-    if (!child) {
+    if (child) {
+      // continue searching in this quadrant.
+      insert(body, child);
+    } else {
       // The node is internal but this quadrant is not taken. Add subnode to it.
       child = treeNodes.get();
       child->left = left;
@@ -103,40 +143,7 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
       child->front = front;
       child->body = body;
       node->quads[quadIdx] = child;
-    } else {
-      // continue searching in this quadrant.
-      insert(body, child);
     }
-  } else {
-    // We are trying to add to the leaf node.
-    // We have to convert current leaf into internal node
-    // and continue adding two nodes.
-    Body *oldBody = node->body;
-    node->body = NULL; // internal nodes do not carry bodies
-    if (oldBody->pos.sameAs(body->pos)) {
-      int retriesCount = 3;
-      do {
-        double offset = random.nextDouble(),
-        dx = (node->right - node->left) * offset,
-        dy = (node->bottom - node->top) * offset,
-        dz = (node->front - node->back) * offset;
-
-        oldBody->pos.set(node->left + dx, node->top + dy, node->back + dz);
-        retriesCount -= 1;
-        // Make sure we don't bump it out of the box. If we do, next iteration should fix it
-      } while (retriesCount > 0 && oldBody->pos.sameAs(body->pos));
-
-      if (retriesCount == 0 && oldBody->pos.sameAs(body->pos)) {
-        // This is very bad, we ran out of precision.
-        // We cannot proceed under current root's constraints, so let's
-        // throw - this will cause parent to give bigger space for the root
-        // node, and hopefully we can fit on the subsequent iteration.
-        throw _NotEnoughQuadSpaceException;
-      }
-    }
-    // Next iteration should subdivide node further.
-    insert(oldBody, node);
-    insert(body, node);
   }
 }
 
@@ -159,84 +166,65 @@ void QuadTree::insertBodies(const std::vector<Body *> &bodies) {
 };
 
 void QuadTree::updateBodyForce(Body *sourceBody) {
-  std::vector<QuadTreeNode *> queue;
-  int queueLength = 1;
-  int shiftIndex = 0;
-  size_t pushIndex = 0;
-  double v, r;
   Vector3 force;
-  Vector3 movement;
-  queue.push_back(root);
-  while (queueLength) {
-    QuadTreeNode *node = queue[shiftIndex];
+
+  auto visitNode = [&](const QuadTreeNode *node) -> bool {
     Body *body = node->body;
-    queueLength -= 1;
-    shiftIndex += 1;
-    bool differentBody = (body != sourceBody);
-    if (body != NULL && differentBody) {
-      // If the current node is a leaf node (and it is not source body),
-      // calculate the force exerted by the current node on body, and add this
-      // amount to body's net force.
-      movement.set(body->pos);
-      movement.sub(sourceBody->pos);
-      r = movement.length();
+    if (node->body == sourceBody) return false; // no need to traverse: This is current body
 
-      if (r == 0) {
-        // Poor man's protection against zero distance.
-        movement.set((random.nextDouble() - 0.5) / 50,
-                     (random.nextDouble() - 0.5) / 50,
-                     (random.nextDouble() - 0.5) / 50);
-        r = movement.length();
+    if (node->isLeaf()) {
+      Vector3 dt = body->pos - sourceBody->pos;
+      auto dist = dt.length();
+      if (dist == 0) {
+        dist = 0.1;
       }
+      auto v = _gravity * body->mass * sourceBody->mass / (dist * dist * dist);
+      force.addScaledVector(dt, v);
 
-      // This is standard gravitation force calculation but we divide
-      // by r^3 to save two operations when normalizing force vector.
-
-      v = _gravity * body->mass * sourceBody->mass / (r * r * r);
-      force.addScaledVector(movement, v);
-    } else if (differentBody) {
-      // Otherwise, calculate the ratio s / r,  where s is the width of the region
-      // represented by the internal node, and r is the distance between the body
-      // and the node's center-of-mass
-
-      movement.set(node->massVector);
-      movement.multiplyScalar(1./node->mass)->sub(sourceBody->pos);
-
-      r = movement.length();
-
-      if (r == 0) {
-        // Sorry about code duplication. I don't want to create many functions
-        // right away. Just want to see performance first.
-        movement.set((random.nextDouble() - 0.5) / 50,
-                     (random.nextDouble() - 0.5) / 50,
-                     (random.nextDouble() - 0.5) / 50);
-        r = movement.length();
-      }
-      // If s / r < θ, treat this internal node as a single body, and calculate the
-      // force it exerts on sourceBody, and add this amount to sourceBody's net force.
-      if ((node->right - node->left) / r < _theta) {
-        // in the if statement above we consider node's width only
-        // because the region was squarified during tree creation.
-        // Thus there is no difference between using width or height.
-        v = _gravity * node->mass * sourceBody->mass / (r * r * r);
-        force.addScaledVector(movement, v);
-      } else {
-        // Otherwise, run the procedure recursively on each of the current node's children.
-        for (int i = 0; i < 8; ++i) {
-          if (node->quads[i]) {
-            if (queue.size() < pushIndex) {
-              queue[pushIndex] = node->quads[i];
-            } else {
-              queue.push_back(node->quads[i]);
-            }
-            queueLength += 1;
-            pushIndex += 1;
-          }
-        }
-      }
+      return false; // no need to traverse this route;
     }
 
-  }
+    // This is not a leaf then.
+    // Calculate the ratio s / r,  where s is the width of the region
+    // represented by the internal node, and r is the distance between the body
+    // and the node's center-of-mass
+
+    Vector3 centerOfMass(node->massVector);
+    centerOfMass.multiplyScalar(1./node->mass);
+
+    Vector3 dt = centerOfMass - sourceBody->pos;
+    auto distanceToCenterOfMass = dt.length();
+
+    if (distanceToCenterOfMass == 0) {
+      distanceToCenterOfMass = 0.1;
+    }
+
+    auto regionWidth = node->right - node->left;
+    // If s / r < θ, treat this entire node as a single body, and calculate the
+    // force it exerts on sourceBody. Add this amount to sourceBody's net force.
+    if (regionWidth / distanceToCenterOfMass < _theta) {
+      // in the if statement above we consider node's width only
+      // because the region was squarified during tree creation.
+      // Thus there is no difference between using width or height.
+      auto v = _gravity * node->mass * sourceBody->mass / (distanceToCenterOfMass * distanceToCenterOfMass * distanceToCenterOfMass);
+      force.addScaledVector(dt, v);
+      return false;
+    }
+
+    // Otherwise, run the procedure recursively on each of the current node's children.
+    return true;
+  };
+
+  traverse(root, visitNode);
 
   sourceBody->force.add(force);
+}
+
+void traverse(const QuadTreeNode *node, const QuadTreeVisitor &visitor) {
+  auto shouldDescent = visitor(node);
+  if (shouldDescent) {
+    for (int i = 0; i < 8; ++i) {
+      if (node->quads[i]) traverse(node->quads[i], visitor);
+    }
+  }
 }

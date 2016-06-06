@@ -4,6 +4,7 @@
   "description": "A C++ implementation of quadtree",
   "scripts": {
     "configure": "ngyp gyp/test.gyp --depth=. -f make --generator-output=build --toplevel-dir=.",
+    "xcode": "ngyp gyp/test.gyp --depth=. -f xcode --generator-output=build --toplevel-dir=.",
     "clean": "rm -rf build",
     "test": "make --directory=build && build/out/Default/test "
   },

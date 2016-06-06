@@ -11,6 +11,8 @@
 
 #include <vector>
 #include <cmath>
+#include <functional>
+
 #include "primitives.h"
 #include "random.cc/random.h"
 
@@ -65,12 +67,27 @@ struct QuadTreeNode {
     mass = 0;
     left = right = top = bottom = front = back = 0;
   }
+
+  bool isLeaf() const {
+    return body != NULL;
+  }
 };
 
+typedef std::function<bool(const QuadTreeNode *node)> QuadTreeVisitor;
+
+void traverse(const QuadTreeNode *node, const QuadTreeVisitor &visitor);
+
+// This class manages creation of a QuadTree nodes between iterations.
 class NodePool {
   size_t currentAvailable = 0;
   std::vector<QuadTreeNode *> pool;
 public:
+  ~NodePool() {
+    for(auto node : pool) {
+      delete node;
+    }
+  }
+
   void reset() {
     currentAvailable = 0;
   }
