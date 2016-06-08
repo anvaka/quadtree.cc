@@ -148,21 +148,24 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
 }
 
 void QuadTree::insertBodies(const std::vector<Body *> &bodies) {
-  try {
-    treeNodes.reset();
-    root = createRootNode(bodies);
-    if (bodies.size() > 0) {
-      root->body = bodies[0];
-    }
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    try {
+      treeNodes.reset();
+      root = createRootNode(bodies);
+      if (bodies.size() > 0) {
+        root->body = bodies[0];
+      }
 
-    for (size_t i = 1; i < bodies.size(); ++i) {
-      insert(bodies[i], root);
+      for (size_t i = 1; i < bodies.size(); ++i) {
+        insert(bodies[i], root);
+      }
+      return; // no need to retry - everything inserted properly.
+    } catch(NotEnoughQuadSpaceException &e) {
+      // well we tried, but some bodies ended up on the same
+      // spot, cannot do anything, but hope that next iteration will fix it
     }
-    return;
-  } catch(NotEnoughQuadSpaceException &e) {
-    // well we tried, but some bodies ended up on the same
-    // spot, cannot do anything, but hope that next iteration will fix it
   }
+  std::cerr << "Could not insert bodies: Not enought tree precision" << std::endl;
 };
 
 void QuadTree::updateBodyForce(Body *sourceBody) {

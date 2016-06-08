@@ -73,8 +73,20 @@ struct Vector3 {
     return this;
   }
 
+  Vector3* set(double c) {
+    return set(c, c, c);
+  }
+
   Vector3* set(double _x, double _y, double _z) {
     x = _x; y = _y; z = _z;
+    return this;
+  }
+
+  Vector3* normalize() {
+    auto length = this->length();
+    x /= length;
+    y /= length;
+    z /= length;
     return this;
   }
 
@@ -82,6 +94,7 @@ struct Vector3 {
     x += v.x * s; y += v.y * s; z += v.z * s;
     return this;
   }
+
   Vector3* sub(const Vector3 &other) {
     x -= other.x;
     y -= other.y;

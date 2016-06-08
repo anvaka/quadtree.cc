@@ -12,6 +12,7 @@
 #include <vector>
 #include <cmath>
 #include <functional>
+#include <iostream>
 
 #include "primitives.h"
 #include "random.cc/random.h"
@@ -26,15 +27,13 @@ struct Body {
   Vector3 velocity;
   double mass = 1.0;
 
+  // TODO: Should this be a reference?
   std::vector<Body *> springs;  // these are outgoing connections.
-
-  // This is just a number of incoming connections for this body,
-  // so we can count its mass appropriately.
-  int incomingCount = 0;
 
   Body() {}
 
-  Body(Vector3 _pos): pos(_pos), prevPos(_pos) {}
+  Body(Vector3 _pos): pos(_pos), prevPos(_pos) {
+  }
 
   void setPos(const Vector3 &_pos) {
     pos = _pos;
