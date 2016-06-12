@@ -20,20 +20,21 @@
 /**
  * A single physical body in the tree node
  */
+template <size_t Dimension>
 struct Body {
-  Vector3 pos;
-  Vector3 force;
-  Vector3 velocity;
+  Vector3<Dimension> pos;
+  Vector3<Dimension> force;
+  Vector3<Dimension> velocity;
   double mass = 1.0;
 
   // TODO: Should this be a reference?
-  std::vector<Body *> springs;  // these are outgoing connections.
+  std::vector<Body<Dimension> *> springs;  // these are outgoing connections.
 
   Body() {}
 
-  Body(Vector3 _pos): pos(_pos) { }
+  Body(Vector3<Dimension> _pos): pos(_pos) { }
 
-  void setPos(const Vector3 &_pos) {
+  void setPos(const Vector3<Dimension> &_pos) {
     pos = _pos;
   }
 
@@ -42,22 +43,22 @@ struct Body {
   }
 };
 
-// TODO: Make it into a template by vector type?
+template <size_t N>
 struct QuadTreeNode {
   std::vector<QuadTreeNode *> quads;
-  Body *body;
+  Body<N> *body;
 
   double mass;        // This is total mass of the current node;
-  Vector3 massVector; // This is a center of the mass-vector for the current node;
+  Vector3<N> massVector; // This is a center of the mass-vector for the current node;
 
-  Vector3 minBounds;    // "left" bounds of the node.
-  Vector3 maxBounds;    // "right" bounds of the node.
+  Vector3<N> minBounds;    // "left" bounds of the node.
+  Vector3<N> maxBounds;    // "right" bounds of the node.
 
 
-  QuadTreeNode(int dimension) : quads(1 << dimension) {}
+  QuadTreeNode() : quads(1 << N) {}
 
   void reset() {
-    quads[0] = quads[1] = quads[2] = quads[3] = quads[4] = quads[5] = quads[6] = quads[7] = NULL;
+    for(size_t i = 0; i < quads.size(); ++i) quads[i] = NULL;
     body = NULL;
     massVector.reset();
     mass = 0;
@@ -71,25 +72,29 @@ struct QuadTreeNode {
 };
 
 /**
- * Visitor for quadtree node iteration. It takes current node, and returns 
- * whether iterator should continue descent into current node.
- */
-typedef std::function<bool(const QuadTreeNode *node)> QuadTreeVisitor;
-
-/**
  * Iterates over each node of the quadtree. `visitor()` takes current node
  * and returns true or false. If true is returned, then iterator should
  * continue descent into this node. Otherwise iteration should not descent.
  */
-void traverse(const QuadTreeNode *node, const QuadTreeVisitor &visitor);
+template <size_t N>
+void traverse(const QuadTreeNode<N> *node, const std::function<bool(const QuadTreeNode<N> *node)> &visitor) {
+  auto shouldDescent = visitor(node);
+  if (shouldDescent) {
+    int size = node->quads.size();
+    for (int i = 0; i < size; ++i) {
+      if (node->quads[i]) traverse(node->quads[i], visitor);
+    }
+  }
+}
 
 /**
  * This class manages creation of a QuadTree nodes between iterations.
  * So that we are not creating to much memor pressure.
  */
+template <size_t N>
 class NodePool {
   size_t currentAvailable = 0;
-  std::vector<QuadTreeNode *> pool;
+  std::vector<QuadTreeNode<N> *> pool;
 
 public:
   ~NodePool() {
@@ -105,13 +110,13 @@ public:
   /**
    * Gets a new node from the pool.
    */
-  QuadTreeNode* get() {
-    QuadTreeNode *result;
+  QuadTreeNode<N>* get() {
+    QuadTreeNode<N> *result;
     if (currentAvailable < pool.size()) {
       result = pool[currentAvailable];
       result->reset();
     } else {
-      result = new QuadTreeNode(3);
+      result = new QuadTreeNode<N>();
       pool.push_back(result);
     }
     currentAvailable += 1;
@@ -119,25 +124,202 @@ public:
   }
 };
 
+template<size_t N>
 class QuadTree {
   Random random;
   double _theta;
   double _gravity;
 
-  NodePool treeNodes;
-  QuadTreeNode *root;
+  NodePool<N> treeNodes;
+  QuadTreeNode<N> *root;
 
-  QuadTreeNode *createRootNode(const std::vector<Body *> &bodies);
-  void insert(Body *body, QuadTreeNode *node);
+  QuadTreeNode<N> *createRootNode(const std::vector<Body<N> *> &bodies) {
+    QuadTreeNode<N> *root = treeNodes.get();
+    Vector3<N> &min = root->minBounds;
+    Vector3<N> &max = root->maxBounds;
+    min.set(INT32_MAX);
+    max.set(INT32_MIN);
+
+    const int size = N;
+    for (auto body : bodies) {
+      for(int i = 0; i < size; ++i) {
+        double v = body->pos.coord[i];
+        if (v < min.coord[i]) min.coord[i] = v;
+        if (v > max.coord[i]) max.coord[i] = v;
+      }
+    }
+
+    // squarify bounds:
+    double maxSide = 0;
+    for (int i = 0; i < size; ++i) {
+      double side = max.coord[i] - min.coord[i];
+      if (side > maxSide) maxSide = side;
+    }
+
+    if (maxSide == 0) {
+      maxSide = bodies.size() * 500;
+      for (int i = 0; i < size; ++i) {
+        min.coord[i] -= maxSide;
+        max.coord[i] += maxSide;
+      }
+    } else {
+      for (int i = 0; i < size; ++i) max.coord[i] = min.coord[i] + maxSide;
+    }
+    
+    return root;
+  }
+  void insert(Body<N> *body, QuadTreeNode<N> *node) {
+    if (node->isLeaf()) {
+      // We are trying to add to the leaf node.
+      // We have to convert current leaf into "internal node"
+      // and continue adding two nodes.
+      Body<N> *oldBody = node->body;
+
+      // Node is not considered a leaf it has no body:
+      node->body = NULL;
+
+      if (oldBody->pos.sameAs(body->pos)) {
+        // Ugh, both bodies are at the same position. Let's try to
+        // bump them within the quadrant:
+        int retriesCount = 3;
+        do {
+          double offset = random.nextDouble();
+          Vector3<N> diff = node->maxBounds - node->minBounds;
+          diff.multiplyScalar(offset)->add(node->minBounds);
+
+          oldBody->pos.set(diff);
+          retriesCount -= 1;
+          // Make sure we don't bump it out of the box. If we do, next iteration should fix it
+        } while (retriesCount > 0 && oldBody->pos.sameAs(body->pos));
+
+        if (retriesCount == 0 && oldBody->pos.sameAs(body->pos)) {
+          // This is very bad, we ran out of precision.
+          // We cannot proceed under current root's constraints, so let's
+          // throw - this will cause parent to give bigger space for the root
+          // node, and hopefully we can fit on the subsequent iteration.
+          NotEnoughQuadSpaceException  _NotEnoughQuadSpaceException;
+          throw _NotEnoughQuadSpaceException;
+        }
+      }
+      // Insert both bodies into a node that is no longer a leaf:
+      insert(oldBody, node);
+      insert(body, node);
+    } else {
+      // This is internal node. Update the total mass of the node and center-of-mass.
+      Vector3<N>& pos = body->pos;
+      node->mass += body->mass;
+      node->massVector.addScaledVector(pos, body->mass);
+
+      // Recursively insert the body in the appropriate quadrant.
+      // But first find the appropriate quadrant.
+      int quadIdx = 0; // Assume we are in the 0's quad.
+      Vector3<N> tempMin(node->minBounds), tempMax;
+      tempMax.setMedian(node->minBounds, node->maxBounds);
+
+      for (size_t i = 0; i < N; ++i) {
+        if (pos.coord[i] > tempMax.coord[i]) {
+          quadIdx += (1 << i);
+          auto oldLeft = tempMin.coord[i];
+          tempMin.coord[i] = tempMax.coord[i];
+          tempMax.coord[i] = tempMax.coord[i] + (tempMax.coord[i] - oldLeft);
+        }
+      }
+
+      QuadTreeNode<N> *child = node->quads[quadIdx];
+      if (child) {
+        // continue searching in this quadrant.
+        insert(body, child);
+      } else {
+        // The node is internal but this quadrant is not taken. Add subnode to it.
+        child = treeNodes.get();
+        child->minBounds.set(tempMin);
+        child->maxBounds.set(tempMax);
+        child->body = body;
+        node->quads[quadIdx] = child;
+      }
+    }
+  }
 
 public:
   QuadTree() : QuadTree(-1.2, 0.8) {}
   QuadTree(const double &gravity, const double &theta) : random(1984), _theta(theta), _gravity(gravity) {}
 
-  void insertBodies(const std::vector<Body *> &bodies);
-  void updateBodyForce(Body *sourceBody);
+  void insertBodies(const std::vector<Body<N> *> &bodies) {
+    for (int attempt = 0; attempt < 3; ++attempt) {
+      try {
+        treeNodes.reset();
+        root = createRootNode(bodies);
+        if (bodies.size() > 0) {
+          root->body = bodies[0];
+        }
 
-  const QuadTreeNode* getRoot() {
+        for (size_t i = 1; i < bodies.size(); ++i) {
+          insert(bodies[i], root);
+        }
+        return; // no need to retry - everything inserted properly.
+      } catch(NotEnoughQuadSpaceException &e) {
+        // well we tried, but some bodies ended up on the same
+        // spot, cannot do anything, but hope that next iteration will fix it
+      }
+    }
+    std::cerr << "Could not insert bodies: Not enought tree precision" << std::endl;
+  }
+  void updateBodyForce(Body<N> *sourceBody) {
+    Vector3<N> force;
+
+    auto visitNode = [&](const QuadTreeNode<N> *node) -> bool {
+      Body<N> *body = node->body;
+      if (node->body == sourceBody) return false; // no need to traverse: This is current body
+
+      if (node->isLeaf()) {
+        Vector3<N> dt = body->pos - sourceBody->pos;
+        auto dist = dt.length();
+        if (dist == 0) {
+          dist = 0.1;
+        }
+        auto v = _gravity * body->mass * sourceBody->mass / (dist * dist * dist);
+        force.addScaledVector(dt, v);
+
+        return false; // no need to traverse this route;
+      }
+
+      // This is not a leaf then.
+      // Calculate the ratio s / r,  where s is the width of the region
+      // represented by the internal node, and r is the distance between the body
+      // and the node's center-of-mass
+
+      Vector3<N> centerOfMass(node->massVector);
+      centerOfMass.multiplyScalar(1./node->mass);
+
+      Vector3<N> dt = centerOfMass - sourceBody->pos;
+      auto distanceToCenterOfMass = dt.length();
+
+      if (distanceToCenterOfMass == 0) {
+        distanceToCenterOfMass = 0.1;
+      }
+
+      auto regionWidth = node->maxBounds.coord[0] - node->minBounds.coord[0];
+      // If s / r < θ, treat this entire node as a single body, and calculate the
+      // force it exerts on sourceBody. Add this amount to sourceBody's net force.
+      if (regionWidth / distanceToCenterOfMass < _theta) {
+        // in the if statement above we consider node's width only
+        // because the region was squarified during tree creation.
+        // Thus there is no difference between using width or height.
+        auto v = _gravity * node->mass * sourceBody->mass / (distanceToCenterOfMass * distanceToCenterOfMass * distanceToCenterOfMass);
+        force.addScaledVector(dt, v);
+        return false;
+      }
+
+      // Otherwise, run the procedure recursively on each of the current node's children.
+      return true;
+    };
+    
+    traverse<N>(root, visitNode);
+    
+    sourceBody->force.add(force);
+  }
+
+  const QuadTreeNode<N>* getRoot() {
     return root;
   }
 };
