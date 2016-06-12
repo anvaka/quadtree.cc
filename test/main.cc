@@ -12,7 +12,8 @@ TEST_CASE( "insert and update update forces", "[insert]" ) {
   tree.insertBodies(bodies);
   tree.updateBodyForce(&body);
 
-  REQUIRE(body.pos == other.pos);
+  auto same = (body.pos == other.pos);
+  REQUIRE(same);
 }
 
 TEST_CASE( "It can get root", "[insert]" ) {
@@ -38,26 +39,25 @@ TEST_CASE("Two bodies repel each other", "[insert]") {
   Body *bodyA = bodies[0];
   Body *bodyB = bodies[1];
 
-  bodyA->pos.x = 1; bodyA->pos.y = 0;
-  bodyB->pos.x = 2; bodyB->pos.y = 0;
+  bodyA->pos.coord[0] = 1; bodyA->pos.coord[1] = 0;
+  bodyB->pos.coord[0] = 2; bodyB->pos.coord[1] = 0;
 
-  
   tree.insertBodies(bodies);
   tree.updateBodyForce(bodyA);
   tree.updateBodyForce(bodyB);
 
   // 'Forces should be equivalent, with opposite sign'
-  REQUIRE(bodyA->force.x + bodyB->force.x == 0);
+  REQUIRE(bodyA->force.coord[0] + bodyB->force.coord[0] == 0);
 
   // 'X-force for body A should not be zero'
-  REQUIRE(bodyA->force.x != 0);
+  REQUIRE(bodyA->force.coord[0] != 0);
   // 'X-force for body B should not be zero'
-  REQUIRE(bodyB->force.x != 0);
+  REQUIRE(bodyB->force.coord[0] != 0);
   // On the other hand, our bodies should not move by Y axis.
   // 'Y-force for body A should be zero'
-  REQUIRE(bodyA->force.y == 0);
+  REQUIRE(bodyA->force.coord[1] == 0);
   // 'Y-force for body B should be zero'
-  REQUIRE(bodyB->force.y == 0);
+  REQUIRE(bodyB->force.coord[1] == 0);
 };
 
 TEST_CASE("Can handle two bodies at the same location", "[insert]") {
@@ -73,8 +73,8 @@ TEST_CASE("Can handle two bodies at the same location", "[insert]") {
   tree.updateBodyForce(bodyB);
   
   // Both bodies got some force
-  REQUIRE(bodyB->force.x != 0);
-  REQUIRE(bodyA->force.x != 0);
+  REQUIRE(bodyB->force.coord[0] != 0);
+  REQUIRE(bodyA->force.coord[0] != 0);
 };
 
 TEST_CASE("It Can handle large bodies number", "[huge]") {

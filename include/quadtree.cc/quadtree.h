@@ -22,7 +22,6 @@
  */
 struct Body {
   Vector3 pos;
-  Vector3 prevPos;
   Vector3 force;
   Vector3 velocity;
   double mass = 1.0;
@@ -32,39 +31,38 @@ struct Body {
 
   Body() {}
 
-  Body(Vector3 _pos): pos(_pos), prevPos(_pos) {
-  }
+  Body(Vector3 _pos): pos(_pos) { }
 
   void setPos(const Vector3 &_pos) {
     pos = _pos;
-    prevPos = _pos;
   }
 
   bool positionInitialized() {
-    return pos.x != 0 || pos.y != 0 || pos.z != 0;
+    return !pos.isZero();
   }
 };
 
 // TODO: Make it into a template by vector type?
 struct QuadTreeNode {
-  QuadTreeNode *quads[8];
+  std::vector<QuadTreeNode *> quads;
   Body *body;
-  double mass;
-  Vector3 massVector;
 
-  double left;
-  double right;
-  double top;
-  double bottom;
-  double front;
-  double back;
+  double mass;        // This is total mass of the current node;
+  Vector3 massVector; // This is a center of the mass-vector for the current node;
+
+  Vector3 minBounds;    // "left" bounds of the node.
+  Vector3 maxBounds;    // "right" bounds of the node.
+
+
+  QuadTreeNode(int dimension) : quads(1 << dimension) {}
 
   void reset() {
     quads[0] = quads[1] = quads[2] = quads[3] = quads[4] = quads[5] = quads[6] = quads[7] = NULL;
     body = NULL;
     massVector.reset();
     mass = 0;
-    left = right = top = bottom = front = back = 0;
+    minBounds.set(0);
+    maxBounds.set(0);
   }
 
   bool isLeaf() const {
@@ -72,14 +70,27 @@ struct QuadTreeNode {
   }
 };
 
+/**
+ * Visitor for quadtree node iteration. It takes current node, and returns 
+ * whether iterator should continue descent into current node.
+ */
 typedef std::function<bool(const QuadTreeNode *node)> QuadTreeVisitor;
 
+/**
+ * Iterates over each node of the quadtree. `visitor()` takes current node
+ * and returns true or false. If true is returned, then iterator should
+ * continue descent into this node. Otherwise iteration should not descent.
+ */
 void traverse(const QuadTreeNode *node, const QuadTreeVisitor &visitor);
 
-// This class manages creation of a QuadTree nodes between iterations.
+/**
+ * This class manages creation of a QuadTree nodes between iterations.
+ * So that we are not creating to much memor pressure.
+ */
 class NodePool {
   size_t currentAvailable = 0;
   std::vector<QuadTreeNode *> pool;
+
 public:
   ~NodePool() {
     for(auto node : pool) {
@@ -91,13 +102,16 @@ public:
     currentAvailable = 0;
   }
 
+  /**
+   * Gets a new node from the pool.
+   */
   QuadTreeNode* get() {
     QuadTreeNode *result;
     if (currentAvailable < pool.size()) {
       result = pool[currentAvailable];
       result->reset();
     } else {
-      result = new QuadTreeNode();
+      result = new QuadTreeNode(3);
       pool.push_back(result);
     }
     currentAvailable += 1;

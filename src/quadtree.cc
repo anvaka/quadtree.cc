@@ -14,47 +14,37 @@
 NotEnoughQuadSpaceException  _NotEnoughQuadSpaceException;
 
 QuadTreeNode *QuadTree::createRootNode(const std::vector<Body *> &bodies) {
-  double x1 = INT32_MAX, x2 = INT32_MIN,
-  y1 = INT32_MAX, y2 = INT32_MIN,
-  z1 = INT32_MAX, z2 = INT32_MIN;
+  QuadTreeNode *root = treeNodes.get();
+  Vector3 &min = root->minBounds;
+  Vector3 &max = root->maxBounds;
+  min.set(INT32_MAX);
+  max.set(INT32_MIN);
 
+  const int size = 3;
   for (auto body : bodies) {
-    double x = body->pos.x;
-    double y = body->pos.y;
-    double z = body->pos.z;
-    if (x < x1) x1 = x;
-    if (x > x2) x2 = x;
-    if (y < y1) y1 = y;
-    if (y > y2) y2 = y;
-    if (z < z1) z1 = z;
-    if (z > z2) z2 = z;
+    for(int i = 0; i < size; ++i) {
+      double v = body->pos.coord[i];
+      if (v < min.coord[i]) min.coord[i] = v;
+      if (v > max.coord[i]) max.coord[i] = v;
+    }
   }
 
   // squarify bounds:
-  double maxSide = std::max(x2 - x1, std::max(y2 - y1, z2 - z1));
+  double maxSide = 0;
+  for (int i = 0; i < size; ++i) {
+    double side = max.coord[i] - min.coord[i];
+    if (side > maxSide) maxSide = side;
+  }
 
   if (maxSide == 0) {
     maxSide = bodies.size() * 500;
-    x1 -=  maxSide;
-    y1 -=  maxSide;
-    z1 -=  maxSide;
-    x2 += maxSide;
-    y2 += maxSide;
-    z2 += maxSide;
+    for (int i = 0; i < size; ++i) {
+      min.coord[i] -= maxSide;
+      max.coord[i] += maxSide;
+    }
   } else {
-    x2 = x1 + maxSide;
-    y2 = y1 + maxSide;
-    z2 = z1 + maxSide;
+    for (int i = 0; i < size; ++i) max.coord[i] = min.coord[i] + maxSide;
   }
-
-
-  QuadTreeNode *root = treeNodes.get();
-  root->left = x1;
-  root->right = x2;
-  root->top = y1;
-  root->bottom = y2;
-  root->back = z1;
-  root->front = z2;
 
   return root;
 }
@@ -74,13 +64,11 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
       // bump them within the quadrant:
       int retriesCount = 3;
       do {
-        double offset = random.nextDouble(),
-        // TODO: this should be a vector operation
-        dx = (node->right - node->left) * offset,
-        dy = (node->bottom - node->top) * offset,
-        dz = (node->front - node->back) * offset;
+        double offset = random.nextDouble();
+        Vector3 diff = node->maxBounds - node->minBounds;
+        diff.multiplyScalar(offset)->add(node->minBounds);
 
-        oldBody->pos.set(node->left + dx, node->top + dy, node->back + dz);
+        oldBody->pos.set(diff);
         retriesCount -= 1;
         // Make sure we don't bump it out of the box. If we do, next iteration should fix it
       } while (retriesCount > 0 && oldBody->pos.sameAs(body->pos));
@@ -105,27 +93,16 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
     // Recursively insert the body in the appropriate quadrant.
     // But first find the appropriate quadrant.
     int quadIdx = 0; // Assume we are in the 0's quad.
-    double left = node->left,
-    right = (node->right + left) / 2,
-    top = node->top,
-    bottom = (node->bottom + top) / 2,
-    back = node->back,
-    front = (node->front + back) / 2;
+    Vector3 tempMin(node->minBounds), tempMax;
+    tempMax.setMedian(node->minBounds, node->maxBounds);
 
-    if (pos.x > right) { // somewhere in the eastern part.
-      quadIdx += 1;
-      left = right;
-      right = node->right;
-    }
-    if (pos.y > bottom) { // and in south.
-      quadIdx += 2;
-      top = bottom;
-      bottom = node->bottom;
-    }
-    if (pos.z > front) { // and in frontal part
-      quadIdx += 4;
-      back = front;
-      front = node->front;
+    for (int i = 0; i < Vector3::size; ++i) {
+      if (pos.coord[i] > tempMax.coord[i]) {
+        quadIdx += (1 << i);
+        auto oldLeft = tempMin.coord[i];
+        tempMin.coord[i] = tempMax.coord[i];
+        tempMax.coord[i] = tempMax.coord[i] + (tempMax.coord[i] - oldLeft);
+      }
     }
 
     QuadTreeNode *child = node->quads[quadIdx];
@@ -135,12 +112,8 @@ void QuadTree::insert(Body *body, QuadTreeNode *node) {
     } else {
       // The node is internal but this quadrant is not taken. Add subnode to it.
       child = treeNodes.get();
-      child->left = left;
-      child->top = top;
-      child->right = right;
-      child->bottom = bottom;
-      child->back = back;
-      child->front = front;
+      child->minBounds.set(tempMin);
+      child->maxBounds.set(tempMax);
       child->body = body;
       node->quads[quadIdx] = child;
     }
@@ -202,7 +175,7 @@ void QuadTree::updateBodyForce(Body *sourceBody) {
       distanceToCenterOfMass = 0.1;
     }
 
-    auto regionWidth = node->right - node->left;
+    auto regionWidth = node->maxBounds.coord[0] - node->minBounds.coord[0];
     // If s / r < θ, treat this entire node as a single body, and calculate the
     // force it exerts on sourceBody. Add this amount to sourceBody's net force.
     if (regionWidth / distanceToCenterOfMass < _theta) {
@@ -226,7 +199,8 @@ void QuadTree::updateBodyForce(Body *sourceBody) {
 void traverse(const QuadTreeNode *node, const QuadTreeVisitor &visitor) {
   auto shouldDescent = visitor(node);
   if (shouldDescent) {
-    for (int i = 0; i < 8; ++i) {
+    int size = node->quads.size();
+    for (int i = 0; i < size; ++i) {
       if (node->quads[i]) traverse(node->quads[i], visitor);
     }
   }
