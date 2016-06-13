@@ -13,8 +13,12 @@
 
 using namespace std;
 
+struct IVector {
+  virtual double operator [](size_t idx) const = 0;
+};
+
 template <size_t DIMENSION>
-struct Vector3 {
+struct Vector3 : public IVector {
   static const int size = DIMENSION;
   double coord[size];
 
@@ -26,6 +30,10 @@ struct Vector3 {
     for(int i = 0; i < size; ++i) {
       coord[i] = other.coord[i];
     }
+  }
+
+  virtual double operator [](size_t idx) const {
+    return coord[idx];
   }
 
   friend Vector3 operator-(Vector3 left, const Vector3& right) {
@@ -111,7 +119,7 @@ struct Vector3 {
 };
 
 template <>
-struct Vector3<3> {
+struct Vector3<3> : public IVector {
   static const int size = 3;
   double coord[size];
 
@@ -123,6 +131,10 @@ struct Vector3<3> {
     coord[0] = other.coord[0];
     coord[1] = other.coord[1];
     coord[2] = other.coord[2];
+  }
+
+  virtual double operator [](size_t idx) const {
+    return coord[idx];
   }
 
   friend Vector3 operator-(Vector3 left, const Vector3& right) {

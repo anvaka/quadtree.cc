@@ -43,8 +43,15 @@ struct Body {
   }
 };
 
+struct IQuadTreeNode {
+public:
+  virtual ~IQuadTreeNode() {};
+  virtual const IVector *getMin() const = 0;
+  virtual const IVector *getMax() const = 0;
+};
+
 template <size_t N>
-struct QuadTreeNode {
+struct QuadTreeNode : public IQuadTreeNode {
   std::vector<QuadTreeNode *> quads;
   Body<N> *body;
 
@@ -56,6 +63,7 @@ struct QuadTreeNode {
 
 
   QuadTreeNode() : quads(1 << N) {}
+  ~QuadTreeNode() {}
 
   void reset() {
     for(size_t i = 0; i < quads.size(); ++i) quads[i] = NULL;
@@ -68,6 +76,13 @@ struct QuadTreeNode {
 
   bool isLeaf() const {
     return body != NULL;
+  }
+
+  virtual const IVector *getMin() const {
+    return (IVector *)&minBounds;
+  }
+  virtual const IVector *getMax() const {
+    return (IVector *)&maxBounds;
   }
 };
 
@@ -124,8 +139,13 @@ public:
   }
 };
 
+class IQuadTree {
+public:
+  virtual const IQuadTreeNode* getRoot() = 0;
+};
+
 template<size_t N>
-class QuadTree {
+class QuadTree : public IQuadTree {
   Random random;
   double _theta;
   double _gravity;
@@ -319,7 +339,7 @@ public:
     sourceBody->force.add(force);
   }
 
-  const QuadTreeNode<N>* getRoot() {
+   virtual const QuadTreeNode<N>* getRoot() {
     return root;
   }
 };
