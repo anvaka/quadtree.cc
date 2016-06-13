@@ -1,7 +1,7 @@
 {
   "name": "quadtree.cc",
   "version": "4.0.0",
-  "description": "A C++ implementation of quadtree",
+  "description": "A C++ implementation of n-dimensional quadtree",
   "scripts": {
     "configure": "ngyp gyp/test.gyp --depth=. -f make --generator-output=build --toplevel-dir=.",
     "xcode": "ngyp gyp/test.gyp --depth=. -f xcode --generator-output=build --toplevel-dir=.",
