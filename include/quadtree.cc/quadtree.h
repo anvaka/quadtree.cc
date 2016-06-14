@@ -46,8 +46,8 @@ struct Body {
 struct IQuadTreeNode {
 public:
   virtual ~IQuadTreeNode() {};
-  virtual const IVector *getMin() const = 0;
-  virtual const IVector *getMax() const = 0;
+  virtual IVector *getMin() = 0;
+  virtual IVector *getMax() = 0;
 };
 
 template <size_t N>
@@ -78,10 +78,10 @@ struct QuadTreeNode : public IQuadTreeNode {
     return body != NULL;
   }
 
-  virtual const IVector *getMin() const {
+  virtual IVector *getMin() {
     return (IVector *)&minBounds;
   }
-  virtual const IVector *getMax() const {
+  virtual IVector *getMax() {
     return (IVector *)&maxBounds;
   }
 };
@@ -141,7 +141,7 @@ public:
 
 class IQuadTree {
 public:
-  virtual const IQuadTreeNode* getRoot() = 0;
+  virtual IQuadTreeNode* getRoot() = 0;
 };
 
 template<size_t N>
@@ -339,7 +339,7 @@ public:
     sourceBody->force.add(force);
   }
 
-   virtual const QuadTreeNode<N>* getRoot() {
+   virtual QuadTreeNode<N>* getRoot() {
     return root;
   }
 };

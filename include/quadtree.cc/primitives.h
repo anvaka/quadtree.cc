@@ -14,7 +14,7 @@
 using namespace std;
 
 struct IVector {
-  virtual double operator [](size_t idx) const = 0;
+  virtual double& operator [](size_t idx) = 0;
 };
 
 // TODO: Rename this file from primitives to vector
@@ -34,7 +34,7 @@ struct Vector3 : public IVector {
     }
   }
 
-  virtual double operator [](size_t idx) const {
+  virtual double& operator [](size_t idx) {
     return coord[idx];
   }
 
@@ -135,7 +135,7 @@ struct Vector3<3> : public IVector {
     coord[2] = other.coord[2];
   }
 
-  virtual double operator [](size_t idx) const {
+  virtual double& operator [](size_t idx) {
     return coord[idx];
   }
 
@@ -248,7 +248,7 @@ struct Vector3<2> : public IVector {
     coord[1] = other.coord[1];
   }
 
-  virtual double operator [](size_t idx) const {
+  virtual double& operator [](size_t idx) {
     return coord[idx];
   }
 
